@@ -58,12 +58,30 @@ function login($username, $password) {
 
 if (!isset($_SESSION['authenticated'])) {
     $server->addFunction('login', 'login');
-} else {
+}  else {
     $server->setClass('UserProxy', 'user');
     $server->setClass('VacationProxy', 'vacation');
     $server->setClass('AliasProxy', 'alias');
+    $server->setClass('DomainProxy', 'domain');
 }
 echo $server->handle();
+
+class DomainProxy {
+
+    /**
+     * @return string domain list
+     */
+    public function getList() {
+        $dh = new DomainHandler(0, $_SESSION['sessid']['username'], 1);
+        $dh->getList('');
+        $items = $dh->result();
+
+        foreach ($items as $item)
+            $domains[] = $item['domain'];
+
+        return $domains;
+    }
+}
 
 
 class UserProxy {
@@ -82,10 +100,10 @@ class UserProxy {
     }
 
     /**
-      * @param string $username
-      * @param string $password
-      * @return boolean true if successful.
-      */
+     * @param string $username
+     * @param string $password
+     * @return boolean true if successful.
+     */
     public function login($username, $password) {
         $uh = new MailboxHandler(); # $_SESSION['sessid']['username']);
         return $uh->login($username, $password);
@@ -161,7 +179,7 @@ class AliasProxy {
     public function update($addresses, $flags) {
         $ah = new AliasHandler();
         $ah->init($_SESSION['sessid']['username']);
-        
+
         $values['goto'] = $addresses;
 
         if ($flags == 'forward_and_store') {
@@ -191,5 +209,40 @@ class AliasProxy {
         $result = $ah->result;
         return $result['goto_mailbox'] == 1;
     }
+
+    /**
+     * @param string of alias email addresses (Strings)
+     * @param array of email addresses to forward (Strings)
+     * @param string flag to set ('forward_and_store' or 'remote_only')
+     * @return boolean true
+     */
+    public function set($alias, $addresses, $flags) {
+
+        $values['goto'] = $addresses;
+        $values['goto_mailbox'] = ($flags == 'forward_and_store') ? 1 : 0;
+
+        $ah = new AliasHandler(empty($flags) ? 1 : 0);
+        $ah->init($alias);
+
+        $values['goto'] = $addresses;
+        $values['goto_mailbox'] = ($flags == 'forward_and_store') ? 1 : 0;
+
+        if (!$ah->set($values)) {
+            //error_log('AliasProxy::update: ah->set failed: ' . print_r($values, true));
+            return false;
+        }
+        $store = $ah->store();
+        return $store;
+    }
+
+    /**
+     * @param string alias address to delete (String)
+     * @return boolean true
+     */
+    public function delete($alias) {
+
+        $ah = new AliasHandler(1);
+        $ah->init($alias);
+        return $ah->delete();
+    }
 }
-/* vim: set expandtab softtabstop=4 tabstop=4 shiftwidth=4: */
